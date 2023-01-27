@@ -7,7 +7,7 @@
 #define NO4 0xFF22DD // 4
 #define NO5 0xFF02FD // 5 
 #define NO6 0xFFC23D // 6 
-#define NO7 0xFFE01F // 7  
+#define NO7 0xFFE01F // 7
 #define NO8 0xFFA857 // 8
 #define NO9 0xFF906F // 9
 #define NO0 0xFF9867 // 0
@@ -31,7 +31,7 @@ int AUTO_PIN = 10;
 int BANK_DOWN_PIN = 11;
 int BANK_UP_PIN = 12;
 int TAB_PIN = 13;
-int MUSIC_PIN = 14;
+int MUSIC_PIN = 15;
 
 //"CHASE1", "CHASE2", "CHASE3", "CHASE4", "CHASE5", "CHASE6"
 bool Chases [] = {false, false, false,false, false, false};
@@ -54,20 +54,74 @@ void pressButton(int pin)
     digitalWrite(pin, LOW);
     delay(50);
     
-    // if (pin < 9){
-    //   Chases[pin-3] = !Chases[pin-3];  //save changes in memory-Array
-    // }
-    // else{
-    //   Modes[pin-9] = !Modes[pin-9];
-    // }
+    if (pin < 9){
+       Chases[pin-3] = !Chases[pin-3];  //save changes in memory-Array
+    }
+    else{
+       Modes[pin-9] = !Modes[pin-9];
+    }
     
     String out = "Button " + String(pin) + " pressed"; //remove for 
     Serial.println(out);                               //production
 }
 
+void pressTab()
+{
+    digitalWrite(TAB_PIN, HIGH);
+    delay(40);
+    digitalWrite(TAB_PIN, LOW);
+    delay(10);
+}
+
+void tab(int time)
+{
+  if (time < 20){
+      time = 20;
+  }
+  else
+  {
+    time -= 20;
+  }
+  pressTab();
+  delay(time);
+  pressTab();  
+}
+
+
+void reactivateLastChases(){
+  for (int i = 0; i < NumberOfChases; ++i){
+    if (LastChases[i] != Chases[i]){
+      pressButton(ChasesPIN[i]);
+    }
+  }
+}
+void deactivateAllChases(){
+  for (int i = 0; i < NumberOfChases; ++i){
+    if (Chases[i] == true){
+      pressButton(ChasesPIN[i]);
+    }
+  }
+}
+
+void switchStrobe()
+{
+  if (!STROBE){;
+    for (int i = 0; i < NumberOfChases; ++i)
+    {
+      LastChases[i] = Chases[i];;
+    }
+    deactivateAllChases();
+    pressButton(CH6_PIN); 
+  }
+  else{
+    reactivateLastChases();
+  }
+  STROBE = !STROBE;
+}
+
 void setup() {
-  Serial.begin(9600); 
-  Serial.println("Start setup"); // remove for production
+  Serial.begin(9600);
+  Serial.println("Start");
   pinMode(CH1_PIN, OUTPUT);
   pinMode(CH2_PIN, OUTPUT);
   pinMode(CH3_PIN, OUTPUT);
@@ -80,8 +134,82 @@ void setup() {
   pinMode(BANK_UP_PIN, OUTPUT);
   pinMode(TAB_PIN,OUTPUT);
   pinMode(MUSIC_PIN,OUTPUT);
+  
+  irrecv.enableIRIn(); // Start the receiver 
 
+  delay(2000);
+  pressButton(AUTO_PIN);
+  delay(50);
+  pressButton(CH2_PIN);
+  delay(50);
+  
+  Serial.println("End setup"); // remove 
+}
+
+void PhysicalRemote(uint32_t result)
+{
+  switch(result)
+    {
+      case NO1:
+        pressButton(CH1_PIN);
+      break;
+      case NO2:
+        pressButton(CH2_PIN);
+      break;
+      case NO3:
+        pressButton(CH3_PIN);
+      break;
+      case NO4:
+        pressButton(CH4_PIN);
+      break;
+      case NO5:
+        pressButton(CH5_PIN);
+      break;
+      case NO6:
+        pressButton(CH6_PIN);
+      break;
+      case NO7:
+        tab(800);
+      break;
+      case NO8:
+        tab(400);
+      break;
+      case NO9:
+        tab(80); //actually 100ms, but because of precision problems 80ms is more reliable to get a 100ms tab-distance
+      break;
+      case STAR:
+        switchStrobe();
+      break;
+      case NO0:
+        pressButton(BLACK_PIN);
+      break;
+      case HASH:
+        //nothing
+      break;
+      case ARRDOWN:
+        pressButton(BANK_DOWN_PIN);
+      break;
+      case ARRUP:
+        pressButton(BANK_UP_PIN);
+      break;
+      case ARRLEFT:
+        pressButton(MUSIC_PIN);
+      break;
+      case ARRRIGHT:
+        pressButton(AUTO_PIN);
+      break;
+      case OK:
+        pressTab();      
+      break;
+    }
 }
 
 void loop() {
+  if (irrecv.decode(&results)) {
+    Serial.println(results.value, HEX);
+    
+    PhysicalRemote(results.value);
+    
+    irrecv.resume(); // Receive the next value
+  }
 }
